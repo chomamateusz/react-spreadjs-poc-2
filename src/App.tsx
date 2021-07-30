@@ -20,6 +20,7 @@ import { WorksheetsManager } from './utils/worksheetsManager'
 import { loadJSONSelector, loadJSONThunk, saveJSONSelector, saveJSONThunk } from './state/excel.slice'
 
 import './index.css'
+import { useStore } from 'react-redux'
 
 const useStyles = makeStyles<Theme>((theme) => ({
   root: {
@@ -35,6 +36,7 @@ const useStyles = makeStyles<Theme>((theme) => ({
 
 const App = () => {
   const classes = useStyles()
+  const store = useStore()
   const dispatch = useAppDispatch()
 
   const loadJSONState = useAppSelector(loadJSONSelector)
@@ -49,8 +51,9 @@ const App = () => {
     return workbookPurchaser && workbookSupplier && new WorksheetsManager({
       workbookPurchaser,
       workbookSupplier,
+      store,
     })
-  }, [workbookPurchaser, workbookSupplier])
+  }, [store, workbookPurchaser, workbookSupplier])
 
   React.useEffect(() => {
     dispatch(loadJSONThunk())
