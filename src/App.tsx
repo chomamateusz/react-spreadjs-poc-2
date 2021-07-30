@@ -1,10 +1,14 @@
 import React from 'react'
+import { unwrapResult } from '@reduxjs/toolkit'
+import { useAppDispatch, useAppSelector } from './store'
 
 import { makeStyles, Theme } from '@material-ui/core'
 
 import { SpreadSheets, Worksheet } from '@grapecity/spread-sheets-react'
 import GC from '@grapecity/spread-sheets'
 import '@grapecity/spread-sheets-charts'
+import '@grapecity/spread-sheets-pivot-addon'
+import '@grapecity/spread-sheets-shapes'
 import '@grapecity/spread-sheets/styles/gc.spread.sheets.excel2016colorful.css'
 
 import BaseButton from './components/atoms/BaseButton'
@@ -13,8 +17,7 @@ import ExcelPurchaserLayout from './components/templates/ExcelPurchaserLayout'
 
 import { WorksheetsManager } from './utils/worksheetsManager'
 
-import { saveJSON } from './api/saveJSON'
-import { loadJSON } from './api/loadJSON'
+import { loadJSONSelector, loadJSONThunk, saveJSONSelector, saveJSONThunk } from './state/excel.slice'
 
 import './index.css'
 
@@ -32,6 +35,10 @@ const useStyles = makeStyles<Theme>((theme) => ({
 
 const App = () => {
   const classes = useStyles()
+  const dispatch = useAppDispatch()
+
+  const loadJSONState = useAppSelector(loadJSONSelector)
+  const saveJSONState = useAppSelector(saveJSONSelector)
 
   const [showPreview, setShowPreview] = React.useState<boolean>(false)
   const [workbookPurchaser, setWorkbookPurchaser] = React.useState<GC.Spread.Sheets.Workbook>()
@@ -45,66 +52,61 @@ const App = () => {
     })
   }, [workbookPurchaser, workbookSupplier])
 
-  return (
-    <ExcelPurchaserLayout
-      className={classes.root}
-      showPreview={showPreview}
-      menuContent={
-        <>
-          <BaseButton
-            onClick={() => {
-              const data = worksheetsManager?.getJSONFromWorkbookPurchaser()
-              data && saveJSON(data)
-              alert('JSON saved')
-            }}
-          >
-            SAVE JSON TO STORAGE
-          </BaseButton>
-          <BaseButton
-            onClick={() => {
-              const data = loadJSON()
-              if(!data){
-                alert('No data')
-                return
-              }
+  React.useEffect(() => {
+    dispatch(loadJSONThunk())
+  // mount only
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
-              worksheetsManager?.loadJSONToWorkbookPurchaser(data)
-              alert('JSON loaded')
-            }}
+  return (
+    loadJSONState.loading ?
+      <>Loading...</>
+      :
+      <ExcelPurchaserLayout
+        className={classes.root}
+        showPreview={showPreview}
+        menuContent={
+          <>
+            <BaseButton
+              onClick={async () => {
+                const data = worksheetsManager?.getJSONFromWorkbookPurchaser()
+                data && await unwrapResult(await dispatch(saveJSONThunk(data)))
+                alert('JSON saved')
+              }}
+            >
+              SAVE JSON TO STORAGE
+            </BaseButton>
+            <PurchaserMenuButtons
+              showPreview={showPreview}
+              onFileChange={(file) => {
+                worksheetsManager?.loadFileToWorkbookPurchaser(file)
+              }}
+              onClickHidePreview={() => setShowPreview(false)}
+              onClickShowPreview={() => {
+                worksheetsManager?.copyDataFromWorkbookPurchaserToSupplier()
+                setShowPreview(true)
+              }}
+            />
+          </>
+        }
+        purchaserExcelContent={
+          <SpreadSheets
+            hostClass={classes.excelContainer}
+            workbookInitialized={setWorkbookPurchaser}
           >
-            LOAD JSON FROM STORAGE
-          </BaseButton>
-          <PurchaserMenuButtons
-            showPreview={showPreview}
-            onFileChange={(file) => {
-              worksheetsManager?.loadFileToWorkbookPurchaser(file)
-            }}
-            onClickHidePreview={() => setShowPreview(false)}
-            onClickShowPreview={() => {
-              worksheetsManager?.copyDataFromWorkbookPurchaserToSupplier()
-              setShowPreview(true)
-            }}
-          />
-        </>
-      }
-      purchaserExcelContent={
-        <SpreadSheets
-          hostClass={classes.excelContainer}
-          workbookInitialized={setWorkbookPurchaser}
-        >
-          <Worksheet></Worksheet>
-        </SpreadSheets>
-      }
-      mappingsContent={null}
-      supplierExcelContent={
-        <SpreadSheets
-          hostClass={classes.excelContainer}
-          workbookInitialized={setWorkbookSupplier}
-        >
-          <Worksheet></Worksheet>
-        </SpreadSheets>
-      }
-    />
+            <Worksheet></Worksheet>
+          </SpreadSheets>
+        }
+        mappingsContent={null}
+        supplierExcelContent={
+          <SpreadSheets
+            hostClass={classes.excelContainer}
+            workbookInitialized={setWorkbookSupplier}
+          >
+            <Worksheet></Worksheet>
+          </SpreadSheets>
+        }
+      />
   )
 }
 
